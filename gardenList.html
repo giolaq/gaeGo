@@ -1,0 +1,13 @@
+<html>
+  <body>
+    {{range .}}
+      {{with .Name}}
+        <p><b>{{.}}</b> wrote:</p>
+      {{else}}
+        <p>An anonymous person wrote:</p>
+      {{end}}
+      <pre>{{.Date}}</pre>
+    {{end}}
+	<a href="newGarden">New Garden</a>
+  </body>
+</html>
