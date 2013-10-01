@@ -42,6 +42,8 @@ func init() {
 //	http.HandleFunc("/viewGarden", viewGarden)
 //	http.HandleFunc("/editGarden", editGarden)
 	http.HandleFunc("/newGarden", createGarden)
+	http.HandleFunc("/saveGarden", saveGarden)
+	
 }
 
 // guestbookKey returns the key used for all guestbook entries.
@@ -62,13 +64,13 @@ func root(w http.ResponseWriter, r *http.Request) {
     // consistent. If we omitted the .Ancestor from this query there would be
     // a slight chance that Greeting that had just been written would not
     // show up in a query.
-    q := datastore.NewQuery("Greeting").Ancestor(guestbookKey(c)).Order("-Date").Limit(10)
-    greetings := make([]Greeting, 0, 10)
-    if _, err := q.GetAll(c, &greetings); err != nil {
+    q := datastore.NewQuery("Garden").Ancestor(gardenContainerKey(c)).Order("-Date").Limit(10)
+    gardens := make([]Garden, 0, 10)
+    if _, err := q.GetAll(c, &gardens); err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
-    if err := guestbookTemplate.Execute(w, greetings); err != nil {
+    if err := guestbookTemplate.Execute(w, gardens); err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
 }
@@ -91,7 +93,7 @@ func sign(w http.ResponseWriter, r *http.Request) {
     // is in the same entity group. Queries across the single entity group
     // will be consistent. However, the write rate to a single entity group
     // should be limited to ~1/second.
-    key := datastore.NewIncompleteKey(c, "Greeting", guestbookKey(c))
+    key := datastore.NewIncompleteKey(c, "Garden", gardenContainerKey(c))
     _, err := datastore.Put(c, key, &g)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -127,4 +129,24 @@ func createGarden(w http.ResponseWriter, r *http.Request) {
     if err := newGardenTemplate.Execute(w, 1); err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
     }
+}
+
+func saveGarden(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    g := Garden{
+        Name: r.FormValue("Name"),
+        Date:    time.Now(),
+    }
+    
+    // We set the same parent key on every Greeting entity to ensure each Greeting
+    // is in the same entity group. Queries across the single entity group
+    // will be consistent. However, the write rate to a single entity group
+    // should be limited to ~1/second.
+    key := datastore.NewIncompleteKey(c, "Garden", gardenContainerKey(c))
+    _, err := datastore.Put(c, key, &g)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    http.Redirect(w, r, "/", http.StatusFound)
 }
