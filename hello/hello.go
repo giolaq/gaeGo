@@ -18,6 +18,7 @@ type Greeting struct {
 
 type Vegetable struct {
 	Name string
+	Description string
 }
 
 type Cultivation struct {
@@ -43,6 +44,7 @@ func init() {
 //	http.HandleFunc("/editGarden", editGarden)
 	http.HandleFunc("/newGarden", createGarden)
 	http.HandleFunc("/saveGarden", saveGarden)
+	http.HandleFunc("/listVegetables", listVegetables)
 	
 }
 
@@ -55,6 +57,10 @@ func guestbookKey(c appengine.Context) *datastore.Key {
 func gardenContainerKey(c appengine.Context) *datastore.Key {
     // The string "default_guestbook" here could be varied to have multiple guestbooks.
     return datastore.NewKey(c, "GardenContainer", "default_gardenContainer", 0, nil)
+}
+
+func vegetableContainerKey(c appengine.Context) *datastore.Key {
+    return datastore.NewKey(c, "VegetableContainer", "default_vegetableContainer", 0, nil)
 }
 
 func root(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +83,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 
 var guestbookTemplate = template.Must(template.ParseFiles("guestbook.html"))
 var gardenListTemplate = template.Must(template.ParseFiles("gardenList.html"))
+var vegetableListTemplate = template.Must(template.ParseFiles("vegetableList.html"))
 var newGardenTemplate = template.Must(template.ParseFiles("newGarden.html"))
 
 
@@ -124,6 +131,28 @@ func listGarden(w http.ResponseWriter, r *http.Request) {
 	
 }
 
+func listVegetables(w http.ResponseWriter, r *http.Request) {
+	 insertVegetableEx(w, r) 
+    c := appengine.NewContext(r)
+    // Ancestor queries, as shown here, are strongly consistent with the High
+    // Replication Datastore. Queries that span entity groups are eventually
+    // consistent. If we omitted the .Ancestor from this query there would be
+    // a slight chance that Greeting that had just been written would not
+    // show up in a query.
+    q := datastore.NewQuery("Vegetable").Ancestor(vegetableContainerKey(c))
+    vegetables := make([]Vegetable, 0, 10)
+    if _, err := q.GetAll(c, &vegetables); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    if err := vegetableListTemplate.Execute(w, vegetables); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+	
+	
+}
+
+
 func createGarden(w http.ResponseWriter, r *http.Request) {
 
     if err := newGardenTemplate.Execute(w, 1); err != nil {
@@ -149,4 +178,25 @@ func saveGarden(w http.ResponseWriter, r *http.Request) {
         return
     }
     http.Redirect(w, r, "/", http.StatusFound)
+}
+
+
+
+func insertVegetableEx(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    g := Vegetable{
+        Name: "Pomodoro",
+        Description:    "Pianta di pomodoro",
+    }
+    
+    // We set the same parent key on every Greeting entity to ensure each Greeting
+    // is in the same entity group. Queries across the single entity group
+    // will be consistent. However, the write rate to a single entity group
+    // should be limited to ~1/second.
+    key := datastore.NewIncompleteKey(c, "Vegetable", vegetableContainerKey(c))
+    _, err := datastore.Put(c, key, &g)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
 }
